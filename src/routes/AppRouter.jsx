@@ -4,6 +4,8 @@ import RegistroCiudadano from "../pages/auth/RegistroCiudadano";
 import ProtectedRoute from "../components/common/ProtectedRoute";
 import MainLayout from "../layout/MainLayout";
 import Home from "../pages/public/Home";
+// CORRECCIÓN 1: Importamos con el nombre correcto del componente
+import ForgotPassword from "../pages/auth/ForgotPassword"; 
 
 // --- SECCION ADMIN ---
 import DashboardAdmin from "../pages/admin/DashboardAdmin";
@@ -27,7 +29,9 @@ const AppRouter = () => {
       {/* RUTAS PUBLICAS */}
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/registro-ciudadano" element={<RegistroCiudadano />} />
+      <Route path="/registro-ciudadano" element={<RegistroCiudadano />} />      
+      <Route path="/recuperar" element={<ForgotPassword />} />
+
 
       {/* RUTAS DE ADMINISTRADOR */}
       <Route
@@ -43,7 +47,7 @@ const AppRouter = () => {
         <Route path="usuarios" element={<Usuarios />} />
       </Route>
 
-      {/* RUTAS DE CIUDADANO - CORREGIDO: Ahora pide el rol CIUDADANO */}
+      {/* RUTAS DE CIUDADANO */}
       <Route
         path="/ciudadano"
         element={

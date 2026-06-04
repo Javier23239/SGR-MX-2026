@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext"; 
 import { reportService } from "../../services/report.service"; 
+import ChatBot from "../../components/chatbot/ChatBot";
 import { 
   RiAddLine, 
   RiHistoryLine, 
@@ -150,6 +151,7 @@ const DashboardCiudadano = () => {
         </div>
 
       </div>
+      <ChatBot />
     </div>
   );
 };

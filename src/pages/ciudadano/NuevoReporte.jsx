@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext"; 
+import ChatBot from "../../components/chatbot/ChatBot";
 import { 
   RiAlertLine, 
   RiMapPinLine, 
@@ -224,6 +225,7 @@ const NuevoReporte = () => {
           </div>
         </form>
       </div>
+      <ChatBot />
     </div>
   );
 };

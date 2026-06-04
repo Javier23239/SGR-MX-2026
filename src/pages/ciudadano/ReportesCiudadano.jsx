@@ -8,6 +8,7 @@ import {
   RiCheckboxCircleLine,
   RiLoader3Line
 } from "react-icons/ri";
+import ChatBot from "../../components/chatbot/ChatBot";
 
 const ReportesCiudadano = () => {
   const [reportes, setReportes] = useState([]);
@@ -141,6 +142,7 @@ const ReportesCiudadano = () => {
               </div>
             );
           })}
+          <ChatBot />
         </div>
       )}
     </div>

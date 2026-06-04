@@ -4,6 +4,7 @@ import Nosotros from "../../components/public/Nosotros";
 import Tecnologias from "../../components/public/Tecnologias";
 import Servicio from "../../components/public/Servicio";
 import Footer from "../../components/public/Footer";
+import ChatBot from "../../components/chatbot/ChatBot"; 
 
 const Home = () => {
   return (
@@ -27,6 +28,8 @@ const Home = () => {
       </section>
 
       <Footer />
+
+      <ChatBot /> 
     </>
   );
 };
