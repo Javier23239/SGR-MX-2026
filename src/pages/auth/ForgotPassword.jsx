@@ -7,7 +7,7 @@ export default function ForgotPassword() {
   const { requestPasswordReset, resetPassword } = useAuth();
   const navigate = useNavigate();
 
-  const [step, setStep] = useState(1); // 1: Email, 2: OTP + New Pass
+  const [step, setStep] = useState(1); 
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState(new Array(6).fill(""));
   const [newPassword, setNewPassword] = useState("");
