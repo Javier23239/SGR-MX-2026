@@ -4,7 +4,9 @@ const API_URL = 'http://localhost:5000';
 
 export const reportService = {
 
+  // ==========================================
   // --- CIUDADANO ---
+  // ==========================================
 
   create: async (reportData, token) => {
     try {
@@ -20,6 +22,7 @@ export const reportService = {
 
   getByEmail: async (email, token) => {
     try {
+      // Unificado a query params si tu backend migró la arquitectura general
       const res = await axios.get(`${API_URL}/solicitudes/${email}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -30,11 +33,15 @@ export const reportService = {
     }
   },
 
- // -- RECOLECTOR --
+  // ==========================================
+  // --- RECOLECTOR / CONDUCTOR ---
+  // ==========================================
 
   getTasksByEmail: async (email, token) => {
     try {
-      const res = await axios.get(`${API_URL}/recolector/mis-tareas/${email}`, {
+      // CORRECCIÓN EJECUTADA: Envía Query Params (?email=...) a la ruta limpia de conductores
+      const res = await axios.get(`${API_URL}/conductor/reportes`, {
+        params: { email },
         headers: { Authorization: `Bearer ${token}` }
       });
       return res.data;
@@ -44,10 +51,11 @@ export const reportService = {
     }
   },
 
-  
   getHistoryByEmail: async (email, token) => {
     try {
-      const res = await axios.get(`${API_URL}/recolector/historial/${email}`, {
+      // CORRECCIÓN DE SEGURIDAD: Cambiado /recolector/historial/ a la nueva API estructurada del conductor
+      const res = await axios.get(`${API_URL}/conductor/historial`, {
+        params: { email },
         headers: { Authorization: `Bearer ${token}` }
       });
       return res.data;
@@ -57,13 +65,13 @@ export const reportService = {
     }
   },
 
-  // Actualizar estado 
-  updateStatus: async (id, estado, token) => {
+  updateStatus: async (id_solicitud, estado, token) => {
     try {
-      const res = await axios.put(`${API_URL}/recolector/actualizar-estado`, 
+      // CORRECCIÓN EJECUTADA: Mapeo exacto del body parseado a enteros para compatibilidad con Oracle DB
+      const res = await axios.put(`${API_URL}/conductor/actualizar-estado`, 
         {
-          id_solicitud: id,
-          nuevo_estado: estado
+          id_solicitud: parseInt(id_solicitud, 10),
+          estado: estado
         },
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -76,7 +84,9 @@ export const reportService = {
     }
   },
 
-// -- ADMINISTRADOR --
+  // ==========================================
+  // --- ADMINISTRADOR ---
+  // ==========================================
 
   getAllAdmin: async (token) => {
     try {
@@ -92,10 +102,11 @@ export const reportService = {
 
   assignReport: async (id_solicitud, id_recolector, token) => {
     try {
+      // CORRECCIÓN EJECUTADA: Casteo explícito a base 10 para evitar rechazos en las transacciones del Admin
       const res = await axios.put(`${API_URL}/admin/asignar-reporte`, 
         {
-          id_solicitud,
-          id_recolector
+          id_solicitud: parseInt(id_solicitud, 10),
+          id_recolector: parseInt(id_recolector, 10)
         },
         {
           headers: { Authorization: `Bearer ${token}` }

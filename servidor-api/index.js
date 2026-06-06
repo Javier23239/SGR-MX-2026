@@ -22,11 +22,11 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-// --- CONEXION BD ---
+// --- CONEXIÓN BD ---
 const dbConfig = {
-    user: "BASURA_DB",
-    password: "1234",
-    connectString: "localhost:1521/XEPDB1"
+    user: process.env.DB_USER || "BASURA_DB",
+    password: process.env.DB_PASSWORD || "1234",
+    connectString: process.env.DB_CONNECT_STRING || "localhost:1521/XEPDB1"
 };
 
 // Almacenamiento temporal para OTP (Login y Recuperación)
@@ -115,7 +115,8 @@ app.post('/login', async (req, res) => {
             res.status(401).json({ error: "Usuario no encontrado" });
         }
     } catch (err) {
-        res.status(500).json({ error: "Error interno" });
+        console.error("Error en /login:", err);
+        res.status(500).json({ error: "Error interno del servidor" });
     } finally {
         if (connection) await connection.close();
     }
@@ -166,8 +167,12 @@ app.post('/forgot-password', async (req, res) => {
             html: `<h1>SGR-MX</h1><p>Tu código de recuperación es: <strong>${otp}</strong></p>`
         });
         res.json({ mensaje: "Código enviado" });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-    finally { if (connection) await connection.close(); }
+    } catch (err) { 
+        console.error("Error en /forgot-password:", err);
+        res.status(500).json({ error: "Error al procesar la solicitud" }); 
+    } finally { 
+        if (connection) await connection.close(); 
+    }
 });
 
 // --- RECUPERACIÓN DE CONTRASEÑA: PASO 2 (RESTABLECER) ---
@@ -196,8 +201,12 @@ app.post('/reset-password', async (req, res) => {
         }
         otpCache.delete(`RESET_${email}`);
         res.json({ mensaje: "Contraseña actualizada" });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-    finally { if (connection) await connection.close(); }
+    } catch (err) { 
+        console.error("Error en /reset-password:", err);
+        res.status(500).json({ error: "No se pudo actualizar la contraseña" }); 
+    } finally { 
+        if (connection) await connection.close(); 
+    }
 });
 
 // --- REGISTRO ---
@@ -215,11 +224,15 @@ app.post('/registrar-ciudadano', async (req, res) => {
             await connection.execute(`INSERT INTO BASURA_DB.CIUDADANO (NOMBRE, APELLIDO, CORREO, DIRECCION, TELEFONO, PASSWORD) VALUES (:nombre, :apellido, :email, :direccion, :telefono, :hashed)`, { nombre, apellido, email, direccion, telefono, hashed }, { autoCommit: true });
         }
         res.status(201).json({ mensaje: "Registro exitoso" });
-    } catch (err) { res.status(400).json({ error: err.message }); }
-    finally { if (connection) await connection.close(); }
+    } catch (err) { 
+        console.error("Error en /registrar-ciudadano:", err);
+        res.status(400).json({ error: err.message }); 
+    } finally { 
+        if (connection) await connection.close(); 
+    }
 });
 
-// --- SOLICITUDES Y GESTIÓN ---
+// --- GESTIÓN DE USUARIOS ---
 app.get('/usuarios', verificarToken, async (req, res) => {
     let connection;
     try {
@@ -229,10 +242,19 @@ app.get('/usuarios', verificarToken, async (req, res) => {
                      UNION ALL SELECT ID_ADMIN AS ID, NOMBRE, '', USUARIO, 'N/A', 'N/A', 'ADMIN' FROM BASURA_DB.ADMINISTRADOR`;
         const result = await connection.execute(sql, [], { outFormat: oracledb.OUT_FORMAT_OBJECT });
         res.json(result.rows);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-    finally { if (connection) await connection.close(); }
+    } catch (err) { 
+        console.error("Error en GET /usuarios:", err);
+        res.status(500).json({ error: "Error al cargar la lista de usuarios" }); 
+    } finally { 
+        if (connection) await connection.close(); 
+    }
 });
 
+// ==========================================
+//          MÉTODOS: CIUDADANO
+// ==========================================
+
+// --- CREAR SOLICITUD (CIUDADANO) ---
 app.post('/solicitudes', verificarToken, async (req, res) => {
     const { descripcion, email, latitud, longitud } = req.body;
     let connection;
@@ -242,24 +264,213 @@ app.post('/solicitudes', verificarToken, async (req, res) => {
                      VALUES (:descripcion, CURRENT_TIMESTAMP, 'Pendiente', (SELECT ID_CIUDADANO FROM BASURA_DB.CIUDADANO WHERE UPPER(TRIM(CORREO)) = UPPER(TRIM(:email))), :latitud, :longitud)`;
         await connection.execute(sql, { descripcion, email, latitud, longitud }, { autoCommit: true });
         res.status(201).json({ mensaje: "Solicitud enviada" });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-    finally { if (connection) await connection.close(); }
+    } catch (err) { 
+        console.error("Error en POST /solicitudes:", err);
+        res.status(500).json({ error: "Error al procesar el reporte de recolección" }); 
+    } finally { 
+        if (connection) await connection.close(); 
+    }
 });
 
+// --- 🛠️ NUEVO: OBTENER HISTORIAL DE REPORTES PROPIOS DEL CIUDADANO (Mapeado a URL Segmentada) ---
+app.get('/solicitudes/:email', verificarToken, async (req, res) => {
+    const { email } = req.params;
+    let connection;
+    try {
+        connection = await oracledb.getConnection(dbConfig);
+        const sql = `
+            SELECT S.ID_SOLICITUD, S.DESCRIPCION, S.ESTADO, S.FECHA_SOLICITUD, S.LATITUD, S.LONGITUD,
+                   NVL(R.NOMBRE || ' ' || R.APELLIDO, 'No Asignado') AS CONDUCTOR
+            FROM BASURA_DB.SOLICITUD S
+            LEFT JOIN BASURA_DB.RECOLECTOR R ON S.ID_RECOLECTOR = R.ID_RECOLECTOR
+            WHERE S.ID_CIUDADANO = (SELECT ID_CIUDADANO FROM BASURA_DB.CIUDADANO WHERE UPPER(TRIM(CORREO)) = UPPER(TRIM(:email)))
+            ORDER BY S.FECHA_SOLICITUD DESC
+        `;
+        const result = await connection.execute(sql, { email }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error en GET /solicitudes/:email:", err);
+        res.status(500).json({ error: "Error al obtener las solicitudes del ciudadano en Oracle." });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
+
+
+// ==========================================
+//          MÉTODOS: ADMINISTRADOR
+// ==========================================
+
+// --- OBTENER REPORTES (ADMINISTRADOR) ---
 app.get('/admin/reportes', verificarToken, async (req, res) => {
     let connection;
     try {
         connection = await oracledb.getConnection(dbConfig);
         const sql = `SELECT S.ID_SOLICITUD, S.DESCRIPCION, S.ESTADO, S.FECHA_SOLICITUD, S.LATITUD, S.LONGITUD,
-                     C.NOMBRE || ' ' || C.APELLIDO AS CIUDADANO, R.NOMBRE || ' ' || R.APELLIDO AS CONDUCTOR
-                     FROM BASURA_DB.SOLICITUD S INNER JOIN BASURA_DB.CIUDADANO C ON S.ID_CIUDADANO = C.ID_CIUDADANO
-                     LEFT JOIN BASURA_DB.RECOLECTOR R ON S.ID_RECOLECTOR = R.ID_RECOLECTOR ORDER BY S.FECHA_SOLICITUD DESC`;
+                     NVL(C.NOMBRE || ' ' || C.APELLIDO, 'Ubicación Manual / Anónimo') AS CIUDADANO, 
+                     NVL(R.NOMBRE || ' ' || R.APELLIDO, 'No Asignado') AS CONDUCTOR
+                     FROM BASURA_DB.SOLICITUD S 
+                     LEFT JOIN BASURA_DB.CIUDADANO C ON S.ID_CIUDADANO = C.ID_CIUDADANO
+                     LEFT JOIN BASURA_DB.RECOLECTOR R ON S.ID_RECOLECTOR = R.ID_RECOLECTOR 
+                     ORDER BY S.FECHA_SOLICITUD DESC`;
         const result = await connection.execute(sql, [], { outFormat: oracledb.OUT_FORMAT_OBJECT });
         res.json(result.rows);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-    finally { if (connection) await connection.close(); }
+    } catch (err) { 
+        console.error("Error en GET /admin/reportes:", err);
+        res.status(500).json({ error: "Error al mapear las solicitudes globales" }); 
+    } finally { 
+        if (connection) await connection.close(); 
+    }
+});
+
+// --- ASIGNAR CONDUCTOR RECOLECTOR (ADMINISTRADOR) ---
+app.put('/admin/asignar-reporte', verificarToken, async (req, res) => {
+    const { id_solicitud, id_recolector } = req.body;
+    let connection;
+
+    if (!id_solicitud || !id_recolector) {
+        return res.status(400).json({ error: "Faltan parámetros obligatorios (id_solicitud o id_recolector)." });
+    }
+
+    try {
+        connection = await oracledb.getConnection(dbConfig);
+        
+        const idSolicitudNum = parseInt(id_solicitud, 10);
+        const idRecolectorNum = parseInt(id_recolector, 10);
+
+        const sql = `
+            UPDATE BASURA_DB.SOLICITUD 
+            SET ID_RECOLECTOR = :idRecolectorNum, 
+                ESTADO = 'Asignado' 
+            WHERE ID_SOLICITUD = :idSolicitudNum
+        `;
+
+        const result = await connection.execute(
+            sql, 
+            { idRecolectorNum, idSolicitudNum }, 
+            { autoCommit: true }
+        );
+
+        if (result.rowsAffected && result.rowsAffected === 0) {
+            return res.status(404).json({ error: "No se encontró la solicitud específica." });
+        }
+
+        res.json({ mensaje: "Conductor asignado con éxito y estado actualizado en Oracle." });
+    } catch (err) { 
+        console.error("Error en PUT /admin/asignar-reporte:", err);
+        res.status(500).json({ error: "Error en la base de datos Oracle: " + err.message }); 
+    } finally { 
+        if (connection) await connection.close(); 
+    }
+});
+
+
+// ==========================================
+//      MÉTODOS EXCLUSIVOS: CONDUCTOR
+// ==========================================
+
+// --- OBTENER TAREAS ACTIVAS ASIGNADAS POR EMAIL ---
+app.get('/conductor/reportes', verificarToken, async (req, res) => {
+    const { email } = req.query; // Query Parameters (?email=...)
+    let connection;
+
+    if (!email) {
+        return res.status(400).json({ error: "El correo electrónico del conductor es requerido." });
+    }
+
+    try {
+        connection = await oracledb.getConnection(dbConfig);
+        
+        const sql = `
+            SELECT S.ID_SOLICITUD, S.DESCRIPCION, S.ESTADO, S.FECHA_SOLICITUD, S.LATITUD, S.LONGITUD,
+                   C.DIRECCION, NVL(C.NOMBRE || ' ' || C.APELLIDO, 'Ciudadano Anónimo') AS CIUDADANO
+            FROM BASURA_DB.SOLICITUD S
+            LEFT JOIN BASURA_DB.CIUDADANO C ON S.ID_CIUDADANO = C.ID_CIUDADANO
+            INNER JOIN BASURA_DB.RECOLECTOR R ON S.ID_RECOLECTOR = R.ID_RECOLECTOR
+            WHERE UPPER(TRIM(R.CORREO)) = UPPER(TRIM(:email))
+              AND S.ESTADO IN ('Asignado', 'En ruta')
+            ORDER BY S.FECHA_SOLICITUD ASC
+        `;
+
+        const result = await connection.execute(sql, { email }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error en GET /conductor/reportes:", err);
+        res.status(500).json({ error: "Error en la base de datos Oracle: " + err.message });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
+
+// --- ACTUALIZAR ESTADO DE RECOLECCIÓN POR PARTE DEL CONDUCTOR ---
+app.put('/conductor/actualizar-estado', verificarToken, async (req, res) => {
+    const { id_solicitud, estado } = req.body;
+    let connection;
+
+    if (!id_solicitud || !estado) {
+        return res.status(400).json({ error: "Faltan parámetros obligatorios (id_solicitud o estado)." });
+    }
+
+    try {
+        connection = await oracledb.getConnection(dbConfig);
+        const idSolicitudNum = parseInt(id_solicitud, 10);
+
+        const sql = `
+            UPDATE BASURA_DB.SOLICITUD 
+            SET ESTADO = :estado 
+            WHERE ID_SOLICITUD = :idSolicitudNum
+        `;
+
+        const result = await connection.execute(
+            sql, 
+            { estado, idSolicitudNum }, 
+            { autoCommit: true }
+        );
+
+        if (result.rowsAffected && result.rowsAffected === 0) {
+            return res.status(404).json({ error: "No se encontró la solicitud para actualizar." });
+        }
+
+        res.json({ mensaje: "Estado del reporte actualizado con éxito en Oracle Cloud." });
+    } catch (err) {
+        console.error("Error en PUT /conductor/actualizar-estado:", err);
+        res.status(500).json({ error: "Error en la base de datos Oracle: " + err.message });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
+
+// --- 🛠️ CORREGIDO: HISTORIAL CON QUERY PARAMS Y RUTA SANA CORRIGIENDO EL TYPO DE ORTOGRAFÍA ---
+app.get('/conductor/historial', verificarToken, async (req, res) => {
+    const { email } = req.query; // Cambiado de req.params a req.query para encajar con report.service.js
+    let connection;
+    
+    if (!email) {
+        return res.status(400).json({ error: "El correo electrónico del conductor es requerido." });
+    }
+
+    try {
+        connection = await oracledb.getConnection(dbConfig);
+        const sql = `
+            SELECT S.ID_SOLICITUD, S.DESCRIPCION, S.ESTADO, S.FECHA_SOLICITUD, S.LATITUD, S.LONGITUD,
+                   C.DIRECCION, NVL(C.NOMBRE || ' ' || C.APELLIDO, 'Ciudadano Anónimo') AS CIUDADANO
+            FROM BASURA_DB.SOLICITUD S
+            LEFT JOIN BASURA_DB.CIUDADANO C ON S.ID_CIUDADANO = C.ID_CIUDADANO
+            INNER JOIN BASURA_DB.RECOLECTOR R ON S.ID_RECOLECTOR = R.ID_RECOLECTOR
+            WHERE UPPER(TRIM(R.CORREO)) = UPPER(TRIM(:email))
+              AND S.ESTADO = 'Completada'
+            ORDER BY S.FECHA_SOLICITUD DESC
+        `;
+        const result = await connection.execute(sql, { email }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error en GET /conductor/historial:", err);
+        res.status(500).json({ error: "Error al consultar el historial del conductor." });
+    } finally {
+        if (connection) await connection.close();
+    }
 });
 
 // --- INICIO ---
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(` SERVIDOR SGR-MX EN PUERTO ${PORT}`));
+app.listen(PORT, () => console.log(`SERVIDOR SGR-MX EN PUERTO ${PORT}`));

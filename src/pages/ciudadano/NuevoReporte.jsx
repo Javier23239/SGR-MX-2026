@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext"; 
 import ChatBot from "../../components/chatbot/ChatBot";
@@ -27,30 +27,32 @@ const NuevoReporte = () => {
   const [cargando, setCargando] = useState(false);
   const [obteniendoGps, setObteniendoGps] = useState(false);
 
-  const obtenerUbicacion = () => {
+  // --- AUTOMATIZACIÓN DE GPS AL CARGAR LA PÁGINA (Estilo Uber) ---
+  useEffect(() => {
     if (!navigator.geolocation) {
-      return alert("Tu navegador no soporta GPS. Por favor usa un dispositivo móvil o un navegador moderno.");
+      console.error("El navegador no soporta Geolocalización");
+      return;
     }
 
     setObteniendoGps(true);
     
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setForm({
-          ...form,
+        setForm((prevForm) => ({
+          ...prevForm,
           latitud: pos.coords.latitude,
           longitud: pos.coords.longitude
-        });
+        }));
         setObteniendoGps(false);
       },
       (error) => {
-        console.error("Error GPS:", error);
+        console.error("Error GPS automático:", error);
         setObteniendoGps(false);
-        alert("No pudimos obtener tu ubicación exacta. Asegúrate de dar permisos de GPS al sitio.");
+        alert("No pudimos obtener tu ubicación automática. Asegúrate de otorgar permisos de ubicación a la aplicación.");
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 15000 }
     );
-  };
+  }, []); // El arreglo vacío asegura que solo se ejecute una vez al montar el componente
 
   const handleChange = (e) => {
     setForm({
@@ -63,7 +65,7 @@ const NuevoReporte = () => {
     e.preventDefault();
     
     if (!form.latitud || !form.longitud) {
-      return alert("Por favor, captura tu ubicación GPS para que el conductor pueda encontrar el reporte.");
+      return alert("Aún no se ha detectado tu señal GPS. Por favor espera un momento o recarga la página.");
     }
 
     if (!user?.token) {
@@ -115,7 +117,7 @@ const NuevoReporte = () => {
               <RiAlertLine className="animate-pulse" /> Nuevo Reporte
             </h2>
             <p className="text-emerald-100 text-sm mt-2 font-medium">
-              Captura tu ubicación exacta para una recolección inteligente.
+              Ubicación asignada automáticamente para una recolección inteligente.
             </p>
           </div>
           <RiMapPinLine className="absolute -right-4 -bottom-4 text-white/10 size-40 rotate-12" />
@@ -144,27 +146,34 @@ const NuevoReporte = () => {
               </select>
             </div>
 
+            {/* ESTADO DEL GPS (Ya no es un botón clickeable, actúa como indicador de estado) */}
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                <RiMapPinLine className="text-emerald-500" /> Geolocalización
+                <RiMapPinLine className="text-emerald-500" /> Estado del GPS
               </label>
-              <button
-                type="button"
-                onClick={obtenerUbicacion}
-                className={`w-full p-4 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2 border-2 
+              <div
+                className={`w-full p-4 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2 border-2 select-none
                   ${form.latitud 
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-600' 
-                    : 'bg-indigo-50 border-indigo-100 text-indigo-600 hover:bg-indigo-100'}`}
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-600 animate-in fade-in' 
+                    : 'bg-amber-50 border-amber-100 text-amber-600'}`}
               >
                 {obteniendoGps ? (
-                  <RiRadarLine className="animate-spin text-lg" />
+                  <>
+                    <RiRadarLine className="animate-spin text-lg" />
+                    <span>LOCALIZANDO CIUDADANO...</span>
+                  </>
                 ) : form.latitud ? (
-                  <RiCheckboxCircleLine className="text-lg" />
+                  <>
+                    <RiCheckboxCircleLine className="text-lg animate-bounce" />
+                    <span>UBICACIÓN ASIGNADA</span>
+                  </>
                 ) : (
-                  <RiMapPinLine className="text-lg" />
+                  <>
+                    <RiMapPinLine className="text-lg" />
+                    <span>SIN SEÑAL GPS</span>
+                  </>
                 )}
-                {form.latitud ? "UBICACIÓN CAPTURADA" : "CAPTURAR MI GPS"}
-              </button>
+              </div>
             </div>
           </div>
 
@@ -201,9 +210,9 @@ const NuevoReporte = () => {
           <div className="pt-6">
             <button 
               type="submit"
-              disabled={cargando}
+              disabled={cargando || obteniendoGps}
               className={`w-full py-5 rounded-[1.5rem] font-black text-white shadow-xl transition-all flex items-center justify-center gap-3 group
-                ${cargando 
+                ${(cargando || obteniendoGps)
                   ? 'bg-gray-400 cursor-not-allowed' 
                   : 'bg-gray-900 hover:bg-black active:scale-95'}`}
             >

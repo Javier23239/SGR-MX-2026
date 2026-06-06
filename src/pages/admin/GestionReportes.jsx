@@ -54,9 +54,14 @@ const GestionReportes = () => {
     if (!idRecolector || !user?.token) return;
 
     try {
-      await reportService.assignReport(idSolicitud, idRecolector, user.token);
+      // CORRECCIÓN CRÍTICA: Convertimos el string del select a un número entero 
+      // para que Oracle lo inserte sin problemas de incompatibilidad de tipos.
+      const idRecolectorNum = parseInt(idRecolector, 10);
+      const idSolicitudNum = parseInt(idSolicitud, 10);
+
+      await reportService.assignReport(idSolicitudNum, idRecolectorNum, user.token);
       
-      alert(" Conductor asignado con Exito en Oracle");
+      alert("🎉 Conductor asignado con Éxito en Oracle");
       await cargarDatos(); 
     } catch (error) {
       console.error("Error al asignar:", error);

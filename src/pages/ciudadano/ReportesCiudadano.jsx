@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../context/AuthContext";
+// IMPORTACIÓN DEL SERVICIO CORREGIDO
+import { reportService } from "../../services/report.service"; 
 import { 
   RiHistoryLine, 
   RiMapPin2Line, 
@@ -20,19 +22,11 @@ const ReportesCiudadano = () => {
 
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:5000/solicitudes/${user.email}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.token}` 
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error servidor: ${response.status}`);
-      }
-
-      const data = await response.json();
+      
+      // CORRECCIÓN: Migrado al uso del servicio unificado con Axios
+      // Pasamos el email y el token limpiamente
+      const data = await reportService.getByEmail(user.email, user.token);
+      
       setReportes(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error al cargar el historial:", error);
